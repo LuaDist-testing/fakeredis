@@ -1,3 +1,4 @@
+-- WARNING: setting this to true will erase your local Redis DB.
 local TEST_REDIS_LUA = false
 
 local fakeredis = require "fakeredis"
@@ -97,6 +98,7 @@ T:start("strings"); do
   T:eq( R:getrange("foo",0,3), "This" )
   T:eq( R:getrange("foo",-3,-1), "ing" )
   T:eq( R:getrange("foo",0,-1), "This is a string" )
+  T:eq( R:getrange("foo","5","-8"), "is a" )
   T:eq( R:getrange("foo",9,100000), " string" )
   T:eq( R:set("foo","Hello World!"), true )
   T:eq( R:setrange("foo",6,"Redis"), 12 )
@@ -105,23 +107,51 @@ T:start("strings"); do
   T:eq( R:setrange("foo",10,"bar"), 13 )
   T:eq( R:get("foo"), "\0\0\0\0\0\0\0\0\0\0bar" )
   T:eq( R:set("foo","bar"), true )
-  T:eq( R:setrange("foo",1,"A"), 3 )
+  T:eq( R:setrange("foo","1","A"), 3 )
   T:eq( R:get("foo"), "bAr" )
   T:eq( R:del("foo","chunky","spam"), 3 )
   T:rk_nil( "foo" )
   T:eq( R:incrby("foo",5), 5 )
-  T:eq( R:incrby("foo",3), 8 )
+  T:eq( R:incrby("foo","3"), 8 )
   T:eq( R:incr("foo"), 9 )
   T:eq( R:incr("foo"), 10 )
+  T:err( function() R:incrby("foo",math.huge) end )
   T:eq( R:get("foo"), "10" )
   T:eq( R:decr("foo"), 9 )
   T:eq( R:decrby("foo",3), 6 )
   T:eq( R:decrby("foo",-2), 8 )
+  T:eq( R:decrby("foo","1"), 7 )
+  T:eq( R:decrby("foo","-1"), 8 )
+  T:eq( R:set("foo","234293482390480948029348230948"), true )
+  T:err( function() R:decr("foo") end )
+  if TEST_REDIS_LUA then -- see https://github.com/nrk/redis-lua/issues/30
+    T:eq( R:set("foo",string.format("%d",-(2^53) + 5)), true )
+  else
+    T:eq( R:set("foo",-(2^53) + 5), true )
+  end
+  T:eq( R:decr("foo"), -(2^53) + 4 )
+  T:eq( R:incrby("foo",-1), -2^53+3 )
+  if not TEST_REDIS_LUA then -- real Redis has higher limits
+    T:err( function() R:incrby("foo",-10) end )
+  end
+  T:eq( R:set("foo",2), true )
+  T:err( function() R:incrby("foo","234293482390480948029348230948") end )
   T:eq( R:set("foo",2), true )
   T:eq( R:incrby("foo",-5), -3 )
   T:eq( R:get("foo"), "-3" )
+  T:err( function() R:incrby("foo",2.5) end )
+  T:eq( R:incrbyfloat("foo",2.5), -0.5 )
+  T:eq( R:set("foo","5.0e3"), true )
+  T:eq( R:incrbyfloat("foo","2.0e2"), 5200 )
+  T:err( function() R:incrbyfloat("foo","two.6") end )
+  T:eq( R:get("foo"), "5200" )
   T:eq( R:del("foo"), 1 )
   T:rk_nil( "foo" ); T:rk_nil( "spam" ); T:rk_nil( "chunky" )
+  T:rk_nil( "get" )
+  T:eq( R:set("get","foo"), true )
+  T:eq( R:get("get"), "foo")
+  T:eq( R:del("get"), 1 )
+  T:eq( R:get("get"), nil )
 end; T:done()
 
 --- bit operations
@@ -203,7 +233,9 @@ T:start("hashes"); do
   T:eq( R:hmget("foo",{"spam","trap","bar"}), {"eggs",nil,"baz"} )
   T:eq( R:hmset("foo",{bar="biz",chunky="bacon"}), true )
   T:eq( R:hgetall("foo"), {spam="eggs",bar="biz",chunky="bacon"} )
-  T:eq( R:hdel("foo","bar"), 1 )
+  T:eq( R:hmset("foo","bar","baz","yak","yak"), true )
+  T:eq( R:hgetall("foo"), {spam="eggs",bar="baz",chunky="bacon",yak="yak"} )
+  T:eq( R:hdel("foo","bar","yak"), 2 )
   T:rk_nil_hash( "foo","bar" )
   T:eq( R:hdel("foo","bar"), 0 )
   T:eq( R:hget("foo","spam"), "eggs" )
@@ -220,7 +252,21 @@ T:start("hashes"); do
   T:eq( R:hincrby("foo","bar",5), 5 )
   T:eq( R:hincrby("foo","bar",3), 8 )
   T:eq( R:hincrby("foo","bar",-9), -1 )
-  T:eq( R:hget("foo","bar"), "-1" )
+  T:err( function() R:hincrby("foo","bar",-0.5) end )
+  T:eq( R:hincrbyfloat("foo","bar",-0.5), -1.5 )
+  T:eq( R:hincrbyfloat("foo","bar","-0.5e-1"), -1.55 )
+  T:err( function() R:hincrbyfloat("foo","bar","6.two") end )
+  T:eq( R:hget("foo","bar"), "-1.55" )
+  T:eq( R:hset("foo","bar",string.format("%d",2^53-2)), false )
+  if not TEST_REDIS_LUA then -- real Redis has higher limits
+    T:err( function() R:hincrby("foo","bar",2) end )
+  end
+  T:eq( R:hincrby("foo","bar",1), 2^53-1 )
+  T:eq( R:hincrby("foo","bar",-1), 2^53-2 )
+  T:eq( R:hset("foo","bar",string.format("%d",2^53)), false )
+  if not TEST_REDIS_LUA then -- real Redis has higher limits
+    T:err( function() R:hincrby("foo","bar",-1) end )
+  end
   T:eq( R:del("foo"), 1 )
   T:rk_nil( "foo" )
 end; T:done()
@@ -301,12 +347,13 @@ T:start("lists"); do
   T:eq( R:lrange("foo",-2,-1), {"B","C"} )
   T:eq( R:lrange("foo",-3,-1), {"A","B","C"} )
   T:eq( R:lrange("foo",-4,-1), {"A","B","C"} )
+  T:eq( R:lrange("foo","1","-2"), {"B"} )
   T:eq( R:lindex("foo",0), "A" )
   T:eq( R:lindex("foo",-3), "A" )
   T:eq( R:lindex("foo",1), "B" )
   T:eq( R:lindex("foo",-2), "B" )
-  T:eq( R:lindex("foo",2), "C" )
-  T:eq( R:lindex("foo",-1), "C" )
+  T:eq( R:lindex("foo","2"), "C" )
+  T:eq( R:lindex("foo","-1"), "C" )
   T:eq( R:lindex("foo",3), nil )
   T:eq( R:lindex("foo",-4), nil )
   T:eq( R:rpop("foo"), "C" )
@@ -328,13 +375,13 @@ T:start("lists"); do
   T:eq( R:llen("foo"), 3 )
   T:eq( R:lrange("foo",0,-1), {"A","B","C"} )
   T:eq( R:lset("foo",0,"X"), true )
-  T:eq( R:lset("foo",2,"Z"), true )
+  T:eq( R:lset("foo","2","Z"), true )
   T:eq( R:lset("foo",1,"Y"), true )
   T:eq( R:lrange("foo",0,-1), {"X","Y","Z"} )
   T:err( function() R:lset("foo",3,"T") end )
   T:eq( R:lset("foo",-1,"C"), true )
   T:eq( R:lset("foo",-2,"B"), true )
-  T:eq( R:lset("foo",-3,"A"), true )
+  T:eq( R:lset("foo","-3","A"), true )
   T:err( function() R:lset("foo",-4,"T") end )
   T:eq( R:lrange("foo",0,-1), {"A","B","C"} )
   T:eq( R:ltrim("foo",0,-1), true )
@@ -357,7 +404,7 @@ T:start("lists"); do
   T:eq( R:ltrim("foo",1,2), true )
   T:eq( R:lrange("foo",0,-1), {"B","C"} )
   T:eq( R:lpush("foo","A"), 3 )
-  T:eq( R:ltrim("foo",-2,2), true )
+  T:eq( R:ltrim("foo","-2","2"), true )
   T:eq( R:lrange("foo",0,-1), {"B","C"} )
   T:eq( R:lpush("foo","A"), 3 )
   T:eq( R:ltrim("foo",2,2), true )
@@ -390,7 +437,7 @@ T:start("lists"); do
   T:eq( R:lrem("foo",-1,"X"), 1 )
   T:eq( R:lrange("foo",0,-1), {"X","A","X","B","C","4"} )
   T:eq( R:lrem("foo",0,"T"), 0 )
-  T:eq( R:lrem("foo",5,"X"), 2 )
+  T:eq( R:lrem("foo","5","X"), 2 )
   T:eq( R:lrange("foo",0,-1), {"A","B","C","4"} )
   T:eq( R:del("foo"), 1 )
   T:eq( R:linsert("foo","before","T","X"), 0 )
@@ -592,6 +639,8 @@ T:start("zsets"); do
   )
   T:eq( R:zrangebyscore("foo",20,30), {"B","C","D"} )
   T:eq( R:zrangebyscore("foo","(20",30), {"C","D"} )
+  T:eq( R:zrangebyscore("foo","(20","+inf"), {"C","D","A"} )
+  T:eq( R:zrangebyscore("foo","-inf",30), {"E","B","C","D"} )
   T:eq( R:zrangebyscore("foo",20,"(30","withscores"), {{"B",20}} )
   T:eq( R:zrangebyscore("foo",-5,40), {"E","B","C","D","A"} )
   T:eq( R:zrangebyscore("foo",-5,40,"limit",1,3), {"B","C","D"} )
@@ -651,6 +700,43 @@ T:start("zsets"); do
   T:eq( R:zrange("foo",0,-1), {"A","B","E"} )
   T:eq( R:zremrangebyrank("foo",0,-1), 3 )
   T:rk_nil("foo")
+  T:eq( R:zadd("z1",10,"A",20,"B",30,"C"), 3 )
+  T:eq( R:zadd("z2",3,"A",7,"X",11,"C"), 3 )
+  T:eq( R:zunionstore("z3",2,"z1","z2"), 4 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"X",7},{"A",13},{"B",20},{"C",41}}
+  )
+  T:eq( R:zunionstore("z3",3,"z1","z2","zxxx","weights",1,-3,2), 4 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"X",-21},{"C",-3},{"A",1},{"B",20}}
+  )
+  T:eq( R:zadd("z3",30,"C"), 0 )
+  T:eq( R:zunionstore("z3",3,"z1","z2","z3","aggregate","min"), 4 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"X",-21},{"A",1},{"C",11},{"B",20}}
+  )
+  T:eq( R:zunionstore("z3",2,"z1","z2","aggregate","max","weights",1,3), 4 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"A",10},{"B",20},{"X",21},{"C",33}}
+  )
+  T:eq( R:del("z1","z2","z3"), 3 )
+  T:eq( R:zadd("z1",10,"A",20,"B",30,"C"), 3 )
+  T:eq( R:zadd("z2",3,"A",7,"X",11,"C"), 3 )
+  T:eq( R:zinterstore("z3",2,"z1","z2"), 2 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"A",13},{"C",41}}
+  )
+  T:eq( R:zinterstore("z3",2,"z3","z2",{aggregate="max",weights={1,4}}), 2 )
+  T:eq(
+    R:zrange("z3",0,-1,"withscores"),
+    {{"A",13},{"C",44}}
+  )
+  T:eq( R:del("z1","z2","z3"), 3 )
 end; T:done()
 
 --- server

@@ -1,9 +1,18 @@
-package = "fakeredis"
-version = "scm-1"
+-- This file was automatically generated for the LuaDist project.
 
+package = "fakeredis"
+version = "0.3-1"
+
+-- LuaDist source
 source = {
-   url = "git://github.com/catwell/fakeredis.git",
+  tag = "0.3-1",
+  url = "git://github.com/LuaDist-testing/fakeredis.git"
 }
+-- Original source
+-- source = {
+--    url = "git://github.com/catwell/fakeredis.git",
+--    branch = "0.3",
+-- }
 
 description = {
    summary = "Redis mock",

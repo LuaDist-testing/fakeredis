@@ -34,7 +34,7 @@
 [x] getset
 [x] incr
 [x] incrby
-[ ] incrbyfloat
+[x] incrbyfloat
 [x] mget
 [x] mset
 [x] msetnx
@@ -53,7 +53,7 @@
 [x] hget
 [x] hgetall
 [x] hincrby
-[ ] hincrbyfloat
+[x] hincrbyfloat
 [x] hkeys
 [x] hlen
 [x] hmget
@@ -105,7 +105,7 @@
 [x] zcard
 [x] zcount
 [x] zincrby
-[ ] zinterstore
+[x] zinterstore
 [x] zrange
 [x] zrangebyscore
 [x] zrank
@@ -116,7 +116,7 @@
 [x] zrevrangebyscore
 [x] zrevrank
 [x] zscore
-[ ] zunionstore
+[x] zunionstore
 
 # pub/sub
 
