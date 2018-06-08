@@ -1,24 +1,23 @@
 -- This file was automatically generated for the LuaDist project.
 
 package = "fakeredis"
-version = "0.3-1"
+version = "0.4-1"
 
 -- LuaDist source
 source = {
-  tag = "0.3-1",
+  tag = "0.4-1",
   url = "git://github.com/LuaDist-testing/fakeredis.git"
 }
 -- Original source
 -- source = {
 --    url = "git://github.com/catwell/fakeredis.git",
---    branch = "0.3",
+--    branch = "v0.4",
 -- }
 
 description = {
    summary = "Redis mock",
    detailed = [[
-      fakeredis is a Redis mock for Lua
-      with the same interface as redis-lua.
+      fakeredis is a Redis mock for Lua with the same interface as redis-lua.
    ]],
    homepage = "http://github.com/catwell/fakeredis",
    license = "MIT/X11",
@@ -27,15 +26,11 @@ description = {
 dependencies = {
    "lua >= 5.1",
    -- "luasocket", -- only for blocking list methods with timeouts
-   -- "LuaBitOp", -- only for Lua 5.1 (not LuaJIT, not 5.2)
+   -- "LuaBitOp", -- only for Lua 5.1 (not LuaJIT)
 }
 
 build = {
    type = "none",
-   install = {
-      lua = {
-         fakeredis = "fakeredis.lua",
-      },
-   },
+   install = { lua = { fakeredis = "fakeredis.lua" } },
    copy_directories = {},
 }

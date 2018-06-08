@@ -1,7 +1,22 @@
+local unpack = table.unpack or unpack
+
 --- Bit operations
 
-local ok,bit = pcall(require,"bit")
-if not ok then bit = bit32 end
+local ok,bit
+if _VERSION == "Lua 5.3" then
+  bit = (load [[ return {
+    band = function(x, y) return x & y end,
+    bor = function(x, y) return x | y end,
+    bxor = function(x, y) return x ~ y end,
+    bnot = function(x) return ~x end,
+    rshift = function(x, n) return x >> n end,
+    lshift = function(x, n) return x << n end,
+  } ]])()
+else
+  ok,bit = pcall(require,"bit")
+  if not ok then bit = bit32 end
+end
+
 assert(type(bit) == "table", "module for bitops not found")
 
 --- default sleep
@@ -11,6 +26,14 @@ do
   local ok, mod = pcall(require, "socket")
   if ok and type(mod) == "table" then
     default_sleep = mod.sleep
+  else
+    default_sleep = function(n)
+      local t0 = os.clock()
+      while true do
+        local delta = os.clock() - t0
+        if (delta < 0) or (delta > n) then break end
+      end
+    end
   end
 end
 
